@@ -8,8 +8,13 @@
     这里把 12 个问题 + 期望的工具 固定下来，跑一次就出一张表：
         选对了几个、多步任务会不会偷懒只调一个、不该调工具时会不会手痒。
 
-只测**工具选择**，不测回答写得好不好（那需要人工评分，成本高且主观）。
-工具选择是 Agent 的基本功，也是出错最多的地方。
+只测两件事，不测回答写得好不好（那需要人工评分，成本高且主观）：
+    1. **工具选择**：该不该调？调得对不对？
+    2. **工具执行**：调了之后真的跑成功了吗？
+
+第 2 项是第一版漏掉的，而且真的踩了坑：知识库工具因为环境缺 numpy 一直静默失败，
+但只检查"工具名对不对"的测试全绿 —— **工具挂了，选择依然是对的。**
+所以现在两个指标分开统计，任一不过都算问题。
 
 用法：
     .venv\\Scripts\\python.exe test_agent.py
@@ -60,6 +65,22 @@ def grade(expected: set[str], forbidden: set[str], called: list[str]) -> tuple[b
     return True, "正确"
 
 
+# 工具"看起来成功、其实返回了失败信息"的痕迹。
+# 教训：只检查"调用了正确的工具"是不够的——工具本身挂了，选择依然是对的。
+# 这个测试集第一版就踩过：知识库工具因为缺 numpy 一直静默失败，12/12 是虚的。
+FAIL_MARKERS = ("不可用", "执行出错", "失败", "不存在", "拒绝读取")
+
+
+def exec_ok(steps: list[dict]) -> tuple[bool, str]:
+    """检查工具是不是真的跑成功了（不能只看它有没有被调用）。"""
+    for s in steps:
+        if not s["ok"]:
+            return False, f"{s['tool']} 报错"
+        if any(m in s["result"] for m in FAIL_MARKERS):
+            return False, f"{s['tool']} 返回了失败信息"
+    return True, "正常"
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Agent 工具选择测试")
     ap.add_argument("--show-answer", action="store_true", help="打印每次的最终回答")
@@ -67,10 +88,11 @@ def main() -> None:
 
     cfg = agent.load_config()
     print(f"\n工具选择测试 · 共 {len(CASES)} 题 · 模型 {cfg['model']}\n")
-    print(f"{'问题':<34}{'实际调用':<44}{'判定'}")
-    print("─" * 100)
+    print(f"{'问题':<34}{'实际调用':<44}{'选择':<10}{'执行'}")
+    print("─" * 106)
 
     passed = 0
+    exec_passed = 0
     total_calls = 0
     total_rounds = 0
     failures: list[str] = []
@@ -81,21 +103,27 @@ def main() -> None:
         total_calls += len(called)
         total_rounds += r["rounds"]
         ok, why = grade(expected, forbidden, called)
+        eok, ewhy = exec_ok(r["steps"])
         passed += ok
+        exec_passed += eok
 
         label = q if len(q) <= 32 else q[:31] + "…"
         calls = "、".join(called) or "（未调用）"
         if len(calls) > 42:
             calls = calls[:41] + "…"
-        print(f"{label:<34}{calls:<44}{'✅ ' + why if ok else '❌ ' + why}")
-        if not ok:
-            failures.append(f"{q}\n      期望：{expected or '不调用'} ｜ 实际：{called or '未调用'} ｜ {why}")
+        col1 = "✅" if ok else "❌"
+        col2 = "✅ " + ewhy if eok else "❌ " + ewhy
+        print(f"{label:<34}{calls:<44}{col1:<10}{col2}")
+        if not ok or not eok:
+            failures.append(f"{q}\n      期望工具：{expected or '不调用'} ｜ 实际：{called or '未调用'}"
+                            f"\n      选择：{why} ｜ 执行：{ewhy}")
         if args.show_answer:
             print(f"      答：{r['answer'].strip().replace(chr(10), ' ')[:120]}")
 
     n = len(CASES)
-    print("─" * 100)
-    print(f"  工具选择准确率   {passed}/{n}  =  {passed / n * 100:.0f}%")
+    print("─" * 106)
+    print(f"  工具选择准确率   {passed}/{n}  =  {passed / n * 100:.0f}%   ← 该不该调、调得对不对")
+    print(f"  工具执行成功率   {exec_passed}/{n}  =  {exec_passed / n * 100:.0f}%   ← 调了之后真的跑成功了吗")
     print(f"  平均调用次数     {total_calls / n:.2f} 次/题")
     print(f"  平均完成轮数     {total_rounds / n:.2f} 轮/题")
 

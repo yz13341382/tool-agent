@@ -1,3 +1,6 @@
 openai
 python-dotenv
 streamlit
+
+# 只有用「本地知识库检索」这个工具时才需要（它直接 import 隔壁 rag-pdf 的 rag.py）
+numpy
