@@ -41,7 +41,7 @@ https://platform.deepseek.com/api_keys
 ### 2. 问一句试试
 
 ```bash
-cd C:\Users\Sun\Desktop\workbuddy\tool-agent
+cd tool-agent
 .venv\Scripts\python.exe run.py "现在几点？顺便算一下 12000*3"
 ```
 
@@ -234,7 +234,7 @@ Agent 能自己循环，就意味着它也能**自己循环到死**、或者**�
 2. 执行（把 `你的用户名` 换成你的 GitHub 用户名）：
 
 ```bash
-cd C:/Users/Sun/Desktop/workbuddy/tool-agent
+cd tool-agent
 git remote add origin https://github.com/你的用户名/tool-agent.git
 git push -u origin main
 ```

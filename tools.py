@@ -39,7 +39,10 @@ try:
 except ImportError:
     pass
 
-RAG_DIR = Path(os.getenv("RAG_PROJECT_DIR", r"C:\Users\Sun\Desktop\workbuddy\rag-pdf"))
+RAG_DIR = Path(os.getenv("RAG_PROJECT_DIR", "../rag-pdf"))
+# 相对路径按「本文件所在目录」解析 —— 这样换台电脑、换个目录都不用改配置
+if not RAG_DIR.is_absolute():
+    RAG_DIR = (Path(__file__).resolve().parent / RAG_DIR).resolve()
 _RAG_READY = RAG_DIR.exists()
 if _RAG_READY:
     sys.path.insert(0, str(RAG_DIR))
